@@ -3,16 +3,16 @@ import os
 import datetime
 import subprocess
 from dotenv import load_dotenv
-from google import genai
+
 from config import MODEL_NAME, JOBS_DIR
+from services.ai_service import generate_resume
 from services.resume_service import save_resume
 from services.job_service import add_job
 
 # -----------------------
-# LOAD ENV + CLIENT
+# LOAD ENV
 # -----------------------
 load_dotenv()
-client = genai.Client()
 
 # -----------------------
 # READ INPUT FILES
@@ -30,42 +30,10 @@ company = input("Enter company name: ")
 role = input("Enter role: ")
 
 # -----------------------
-# BUILD PROMPT
-# -----------------------
-prompt = f"""
-You are an expert resume optimizer.
-
-Rewrite the resume to match the job description.
-
-STRICT RULES:
-- Output ONLY the final resume
-- DO NOT explain changes
-- DO NOT include commentary
-- DO NOT include notes
-- DO NOT include sections like "what was changed"
-- Keep it clean and ready to send
-
-Guidelines:
-- Keep it truthful
-- Improve wording and impact
-- Align with job keywords
-- Keep structure professional
-
---- RESUME ---
-{resume}
-
---- JOB DESCRIPTION ---
-{jd}
-"""
-
-# -----------------------
-# CALL GEMINI
+# GENERATE RESUME (AI SERVICE)
 # -----------------------
 try:
-    response = client.models.generate_content(
-        model=MODEL_NAME,
-        contents=prompt
-    )
+    resume_text = generate_resume(resume, jd)
 except Exception as e:
     print("Error generating resume:", e)
     exit()
@@ -82,14 +50,14 @@ with open(jd_filename, "w") as f:
     f.write(jd)
 
 # -----------------------
-# SAVE RESUME (via service)
+# SAVE RESUME (SERVICE)
 # -----------------------
-filename = save_resume(response.text)
+filename = save_resume(resume_text)
 
 print(f"\nSaved to {filename}")
 
 # -----------------------
-# OPEN FILES
+# OPEN FILES IN VS CODE
 # -----------------------
 subprocess.run(["code", filename, jd_filename])
 
@@ -108,7 +76,7 @@ job_entry = {
 }
 
 # -----------------------
-# SAVE JOB (via service)
+# SAVE JOB (SERVICE)
 # -----------------------
 add_job(job_entry)
 
