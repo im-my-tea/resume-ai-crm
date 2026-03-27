@@ -17,11 +17,6 @@ AI-powered resume tailoring and job tracking system.
 ```bash
 python app.py
 ```
-```
+## Note
 
-Then:
-
-```bash
-git add .
-git commit -m "Add README"
-git push
+This project ignores dynamic data (resumes, job descriptions) using `.gitignore`.

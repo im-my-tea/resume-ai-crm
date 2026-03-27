@@ -11,3 +11,10 @@ __pycache__/
 
 # logs / temp
 *.log
+
+# dynamic data (do not track)
+jobs/
+versions/
+jobs.json
+jd.txt
+master-resume.txt
