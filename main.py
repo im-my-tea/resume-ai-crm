@@ -1,10 +1,12 @@
 import re
 import os
-import json
 import datetime
 import subprocess
 from dotenv import load_dotenv
 from google import genai
+from config import MODEL_NAME, JOBS_DIR
+from services.resume_service import save_resume
+from services.job_service import add_job
 
 # -----------------------
 # LOAD ENV + CLIENT
@@ -21,7 +23,9 @@ with open("master-resume.txt", "r") as f:
 with open("jd.txt", "r") as f:
     jd = f.read()
 
-# take user input
+# -----------------------
+# USER INPUT
+# -----------------------
 company = input("Enter company name: ")
 role = input("Enter role: ")
 
@@ -57,49 +61,41 @@ Guidelines:
 # -----------------------
 # CALL GEMINI
 # -----------------------
-response = client.models.generate_content(
-    model="gemini-2.5-flash",
-    contents=prompt
-)
+try:
+    response = client.models.generate_content(
+        model=MODEL_NAME,
+        contents=prompt
+    )
+except Exception as e:
+    print("Error generating resume:", e)
+    exit()
 
 # -----------------------
-# SAVE JD PER JOB (NEW)
+# SAVE JD
 # -----------------------
+os.makedirs(JOBS_DIR, exist_ok=True)
 
-# create jobs folder
-os.makedirs("jobs", exist_ok=True)
-
-# safe filename (no spaces) - upgraded w re later
 company_slug = re.sub(r'[^a-z0-9]+', '-', company.lower()).strip('-')
-
-jd_filename = f"jobs/jd_{company_slug}.txt"
+jd_filename = f"{JOBS_DIR}/jd_{company_slug}.txt"
 
 with open(jd_filename, "w") as f:
     f.write(jd)
 
 # -----------------------
-# SAVE VERSION
+# SAVE RESUME (via service)
 # -----------------------
-os.makedirs("versions", exist_ok=True)
-
-timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
-filename = f"versions/resume_{timestamp}.txt"
-
-with open(filename, "w") as f:
-    f.write(response.text)
+filename = save_resume(response.text)
 
 print(f"\nSaved to {filename}")
 
 # -----------------------
-# OPEN IN VS CODE
+# OPEN FILES
 # -----------------------
 subprocess.run(["code", filename, jd_filename])
 
 # -----------------------
-# JOB TRACKING (NEW)
+# CREATE JOB ENTRY
 # -----------------------
-
-
 job_entry = {
     "company": company,
     "role": role,
@@ -111,21 +107,9 @@ job_entry = {
     "notes": ""
 }
 
-# load existing jobs
-if os.path.exists("jobs.json"):
-    with open("jobs.json", "r") as f:
-        try:
-            jobs = json.load(f)
-        except:
-            jobs = []
-else:
-    jobs = []
-
-# append new job
-jobs.append(job_entry)
-
-# save updated jobs
-with open("jobs.json", "w") as f:
-    json.dump(jobs, f, indent=2)
+# -----------------------
+# SAVE JOB (via service)
+# -----------------------
+add_job(job_entry)
 
 print("Job saved to jobs.json")
