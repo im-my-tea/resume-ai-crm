@@ -46,4 +46,5 @@ AI-powered resume tailoring and job tracking system.
 Start the CLI dashboard:
 
 ```bash
-python app.py```
+python app.py
+```
