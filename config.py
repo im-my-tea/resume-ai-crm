@@ -1,4 +1,8 @@
 MODEL_NAME = "gemini-2.5-flash"
-JOBS_FILE = "jobs.json"
-VERSIONS_DIR = "versions"
-JOBS_DIR = "jobs"
+
+# File storage
+VERSIONS_DIR = "CVs"
+JOBS_DIR = "JDs"
+
+# Database
+DB_PATH = "data/jobs.db"

@@ -9,12 +9,14 @@ __pycache__/
 # system
 .DS_Store
 
-# logs / temp
+# logs
 *.log
 
-# dynamic data (do not track)
-jobs/
-versions/
-jobs.json
+# dynamic data
+JDs/
+CVs/
+data/jobs.db
+
+# temp inputs
 jd.txt
 master-resume.txt

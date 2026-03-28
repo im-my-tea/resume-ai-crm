@@ -1,28 +1,100 @@
-import json
-import os
 import datetime
+from db.database import get_connection
 
-JOBS_FILE = "jobs.json"
 
+# -------------------------
+# CREATE JOB
+# -------------------------
+def add_job(company, role, jd_path, resume_path):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO jobs (company, role, jd_path, resume_path, status, date, edited, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        company,
+        role,
+        jd_path,
+        resume_path,
+        "generated",
+        datetime.date.today().isoformat(),
+        0,
+        ""
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+# -------------------------
+# GET ALL JOBS
+# -------------------------
 def load_jobs():
-    if os.path.exists(JOBS_FILE):
-        with open(JOBS_FILE, "r") as f:
-            try:
-                return json.load(f)
-            except:
-                return []
-    return []
+    conn = get_connection()
+    cursor = conn.cursor()
 
-def save_jobs(jobs):
-    with open(JOBS_FILE, "w") as f:
-        json.dump(jobs, f, indent=2)
+    cursor.execute("SELECT * FROM jobs")
+    rows = cursor.fetchall()
+    conn.close()
 
-def add_job(job_entry):
-    jobs = load_jobs()
-    jobs.append(job_entry)
-    save_jobs(jobs)
+    jobs = []
+    for row in rows:
+        jobs.append({
+            "id": row[0],
+            "company": row[1],
+            "role": row[2],
+            "jd_path": row[3],
+            "resume_path": row[4],
+            "status": row[5],
+            "date": row[6],
+            "edited": bool(row[7]),
+            "notes": row[8]
+        })
 
-def update_job(index, updated_job):
-    jobs = load_jobs()
-    jobs[index] = updated_job
-    save_jobs(jobs)
+    return jobs
+
+
+# -------------------------
+# UPDATE JOB STATUS
+# -------------------------
+def update_job(job_id, status):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        UPDATE jobs
+        SET status = ?
+        WHERE id = ?
+    """, (status, job_id))
+
+    conn.commit()
+    conn.close()
+
+
+# -------------------------
+# GET SINGLE JOB
+# -------------------------
+def get_job(job_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+    row = cursor.fetchone()
+
+    conn.close()
+
+    if not row:
+        return None
+
+    return {
+        "id": row[0],
+        "company": row[1],
+        "role": row[2],
+        "jd_path": row[3],
+        "resume_path": row[4],
+        "status": row[5],
+        "date": row[6],
+        "edited": bool(row[7]),
+        "notes": row[8]
+    }
