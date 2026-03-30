@@ -2,32 +2,51 @@
 
 {% block content %}
 
-<h2>Job Details</h2>
-
-<p><b>ID:</b> {{ job_id }}</p>
-<p><b>Company:</b> {{ job.company }}</p>
-<p><b>Role:</b> {{ job.role }}</p>
-<p><b>Status:</b> {{ job.status }}</p>
-<p><b>Date:</b> {{ job.date }}</p>
-
-<br>
-
 <a href="/">← Back to list</a>
 
 <br><br>
 
-<form method="post" action="/jobs/{{ job_id }}/update">
-    <label>Update Status:</label>
+<div class="card">
+    <h2>{{ job.company }} — {{ job.role }}</h2>
+    <p><b>Status:</b> {{ job.status }}</p>
+    <p><b>Date:</b> {{ job.date }}</p>
 
-    <select name="status">
-        <option value="generated" {% if job.status == "generated" %}selected{% endif %}>Generated</option>
-        <option value="applied" {% if job.status == "applied" %}selected{% endif %}>Applied</option>
-        <option value="interview" {% if job.status == "interview" %}selected{% endif %}>Interview</option>
-        <option value="rejected" {% if job.status == "rejected" %}selected{% endif %}>Rejected</option>
-        <option value="offer" {% if job.status == "offer" %}selected{% endif %}>Offer</option>
-    </select>
+    <form method="post" action="/jobs/{{ job_id }}/update" style="display:inline-flex; gap:8px; align-items:center; margin-top:8px;">
+        <select name="status">
+            <option value="generated" {% if job.status == "generated" %}selected{% endif %}>Generated</option>
+            <option value="applied" {% if job.status == "applied" %}selected{% endif %}>Applied</option>
+            <option value="interview" {% if job.status == "interview" %}selected{% endif %}>Interview</option>
+            <option value="rejected" {% if job.status == "rejected" %}selected{% endif %}>Rejected</option>
+            <option value="offer" {% if job.status == "offer" %}selected{% endif %}>Offer</option>
+        </select>
+        <button type="submit">Update Status</button>
+    </form>
+</div>
 
-    <button type="submit">Update</button>
-</form>
+<div class="card">
+    <h3>Notes</h3>
+    <form method="post" action="/jobs/{{ job_id }}/notes">
+        <textarea name="notes" rows="4">{{ job.notes or "" }}</textarea>
+        <br><br>
+        <button type="submit">Save Notes</button>
+    </form>
+</div>
+
+<div class="card">
+    <h3>Generated Resume</h3>
+    {% if resume_text %}
+        <pre>{{ resume_text }}</pre>
+    {% else %}
+        <p style="color:#888;">Resume file not found at {{ job.resume_path }}</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3>Delete Job</h3>
+    <p style="color:#888; font-size:13px;">This will remove the job from the list. Files on disk are not deleted.</p>
+    <form method="post" action="/jobs/{{ job_id }}/delete" onsubmit="return confirm('Delete this job?');">
+        <button type="submit" class="danger">Delete Job</button>
+    </form>
+</div>
 
 {% endblock %}

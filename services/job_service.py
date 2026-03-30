@@ -43,6 +43,29 @@ def update_job(job_id: int, status: str):
     conn.close()
 
 
+def update_notes(job_id: int, notes: str):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "UPDATE jobs SET notes = ? WHERE id = ?",
+        (notes, job_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def delete_job(job_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+
+    conn.commit()
+    conn.close()
+
+
 def add_job(company: str, role: str, jd_path: str, resume_path: str):
     import datetime
     conn = sqlite3.connect(DB_PATH)
