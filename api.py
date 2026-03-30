@@ -9,7 +9,7 @@ import os
 
 from services.ai_service import generate_resume
 from services.resume_service import save_resume
-from services.job_service import load_jobs, get_job, update_job, add_job
+from services.job_service import load_jobs, get_job, update_job, update_notes, delete_job, add_job
 from config import JOBS_DIR
 
 app = FastAPI()
@@ -65,7 +65,14 @@ def job_detail_page(request: Request, job_id: int):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    return templates.TemplateResponse(request, "job_detail.html", {"job": job, "job_id": job_id})
+    resume_text = None
+    try:
+        with open(job["resume_path"], "r") as f:
+            resume_text = f.read()
+    except (FileNotFoundError, TypeError):
+        pass
+
+    return templates.TemplateResponse(request, "job_detail.html", {"job": job, "job_id": job_id, "resume_text": resume_text})
 
 
 @app.post("/jobs/{job_id}/update")
@@ -76,6 +83,54 @@ def update_job_status_ui(job_id: int, status: str = Form(...)):
         url=f"/jobs/{job_id}",
         status_code=303
     )
+
+
+@app.post("/jobs/{job_id}/notes")
+def update_job_notes(job_id: int, notes: str = Form(...)):
+    update_notes(job_id, notes)
+    return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
+
+
+@app.post("/jobs/{job_id}/delete")
+def delete_job_ui(job_id: int):
+    delete_job(job_id)
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.get("/generate", response_class=HTMLResponse)
+def generate_page(request: Request):
+    return templates.TemplateResponse(request, "generate.html", {})
+
+
+@app.post("/generate")
+def generate_resume_ui(
+    request: Request,
+    company: str = Form(...),
+    role: str = Form(...),
+    jd_text: str = Form(...)
+):
+    try:
+        with open("master-resume.txt", "r") as f:
+            master_resume = f.read()
+    except FileNotFoundError:
+        return templates.TemplateResponse(
+            request, "generate.html",
+            {"error": "master-resume.txt not found."},
+            status_code=500
+        )
+
+    resume_text = generate_resume(master_resume, jd_text)
+    resume_path = save_resume(resume_text)
+
+    os.makedirs(JOBS_DIR, exist_ok=True)
+    company_slug = re.sub(r'[^a-z0-9]+', '-', company.lower()).strip('-')
+    jd_path = f"{JOBS_DIR}/jd_{company_slug}.txt"
+    with open(jd_path, "w") as f:
+        f.write(jd_text)
+
+    add_job(company, role, jd_path, resume_path)
+
+    return RedirectResponse(url="/", status_code=303)
 
 
 # -----------------------
