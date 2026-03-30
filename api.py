@@ -12,7 +12,6 @@ from config import JOBS_DIR
 
 app = FastAPI()
 
-
 # -----------------------
 # REQUEST/RESPONSE SCHEMA
 # -----------------------
