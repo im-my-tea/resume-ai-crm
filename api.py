@@ -1,23 +1,23 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Form
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
-from typing import Optional, List, Literal, HTTPException
+from typing import Optional, List, Literal
 import datetime
 import re
 import os
 
 from services.ai_service import generate_resume
 from services.resume_service import save_resume
-from services.job_service import add_job, load_jobs, update_job
+from services.job_service import load_jobs, get_job, update_job, add_job
 from config import JOBS_DIR
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
-print(type(templates))
+
 
 # -----------------------
-# REQUEST/RESPONSE SCHEMA
+# SCHEMAS
 # -----------------------
 class ResumeRequest(BaseModel):
     company: str
@@ -49,74 +49,71 @@ class JobResponse(BaseModel):
 
 
 # -----------------------
-# ROOT
+# UI ROUTES
 # -----------------------
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     jobs = load_jobs()
-    return templates.TemplateResponse(
-        request=request,
-        name="index.html",
-        context={"jobs": jobs}
+    return templates.TemplateResponse(request, "index.html", {"jobs": jobs})
+
+
+@app.get("/jobs/{job_id}", response_class=HTMLResponse)
+def job_detail_page(request: Request, job_id: int):
+    job = get_job(job_id)
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    return templates.TemplateResponse(request, "job_detail.html", {"job": job, "job_id": job_id})
+
+
+@app.post("/jobs/{job_id}/update")
+def update_job_status_ui(job_id: int, status: str = Form(...)):
+    update_job(job_id, status)
+
+    return RedirectResponse(
+        url=f"/jobs/{job_id}",
+        status_code=303
     )
 
 
 # -----------------------
-# GET ALL JOBS
+# API ROUTES
 # -----------------------
-@app.get("/jobs", response_model=List[JobResponse])
-def get_jobs():
+
+@app.get("/api/jobs", response_model=List[JobResponse])
+def get_jobs_api():
     return load_jobs()
 
 
-# -----------------------
-# GET SINGLE JOB
-# -----------------------
 @app.get("/api/jobs/{job_id}", response_model=JobResponse)
-def get_job(job_id: int):
-    jobs = load_jobs()
+def get_job_api(job_id: int):
+    job = get_job(job_id)
 
-    for job in jobs:
-        if job["id"] == job_id:
-            return job
-
-    raise HTTPException(status_code=404, detail="Job not found")
-
-@app.get("/jobs/{job_id}", response_class=HTMLResponse)
-def job_detail(request: Request, job_id: int):
-    jobs = load_jobs()
-
-    if job_id < 0 or job_id >= len(jobs):
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    job = jobs[job_id]
-
-    return templates.TemplateResponse(
-        request=request,
-        name="job_detail.html",
-        context={"job": job, "job_id": job_id}
-    )
+    return job
 
 
-# -----------------------
-# UPDATE JOB STATUS
-# -----------------------
-@app.patch("/jobs/{job_id}", response_model=JobResponse)
-def update_job_status(job_id: int, request: StatusUpdateRequest):
-    jobs = load_jobs()
+@app.patch("/api/jobs/{job_id}", response_model=JobResponse)
+def update_job_status_api(job_id: int, request: StatusUpdateRequest):
+    job = get_job(job_id)
 
-    for job in jobs:
-        if job["id"] == job_id:
-            job["status"] = request.status
-            update_job(job_id, request.status)
-            return job
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
 
-    raise HTTPException(status_code=404, detail="Job not found")
+    update_job(job_id, request.status)
+
+    updated_job = get_job(job_id)
+    return updated_job
 
 
 # -----------------------
 # GENERATE RESUME
 # -----------------------
+
 @app.post("/generate-resume")
 def generate_resume_api(request: ResumeRequest):
 
@@ -138,19 +135,13 @@ def generate_resume_api(request: ResumeRequest):
     with open(jd_path, "w") as f:
         f.write(request.jd_text)
 
-    # 4. Create job entry
-    job_entry = {
-        "company": request.company,
-        "role": request.role,
-        "jd_file": jd_path,
-        "resume_version": resume_path,
-        "status": "generated",
-        "date": datetime.datetime.now().strftime("%Y-%m-%d"),
-        "edited": False,
-        "notes": ""
-    }
-
-    add_job(job_entry)
+    # 4. Save to DB (IMPORTANT FIX)
+    add_job(
+        request.company,
+        request.role,
+        jd_path,
+        resume_path
+    )
 
     return {
         "message": "Resume generated successfully",

@@ -18,7 +18,7 @@ while True:
     # GENERATE RESUME
     # -----------------------
     if choice == "1":
-        os.system("python main.py")
+        subprocess.run(["python", "main.py"])
 
     # -----------------------
     # VIEW JOBS (DB)

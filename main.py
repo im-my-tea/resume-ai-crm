@@ -5,7 +5,7 @@ import datetime
 import subprocess
 from dotenv import load_dotenv
 
-from config import MODEL_NAME, JOBS_DIR
+from config import JOBS_DIR
 from services.ai_service import generate_resume
 from services.resume_service import save_resume
 from services.job_service import add_job
