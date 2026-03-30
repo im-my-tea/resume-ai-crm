@@ -107,29 +107,17 @@ def generate_resume_ui(
     request: Request,
     company: str = Form(...),
     role: str = Form(...),
-    jd_text: str = Form(...)
+    jd_text: str = Form(...),
+    master_resume: str = Form(...)
 ):
-    try:
-        with open("master-resume.txt", "r") as f:
-            master_resume = f.read()
-    except FileNotFoundError:
-        return templates.TemplateResponse(
-            request, "generate.html",
-            {"error": "master-resume.txt not found."},
-            status_code=500
-        )
-
     resume_text = generate_resume(master_resume, jd_text)
     resume_path = save_resume(resume_text)
-
     os.makedirs(JOBS_DIR, exist_ok=True)
     company_slug = re.sub(r'[^a-z0-9]+', '-', company.lower()).strip('-')
     jd_path = f"{JOBS_DIR}/jd_{company_slug}.txt"
     with open(jd_path, "w") as f:
         f.write(jd_text)
-
     add_job(company, role, jd_path, resume_path)
-
     return RedirectResponse(url="/", status_code=303)
 
 
