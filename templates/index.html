@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Job Applications</h2>
+
+<table border="1">
+    <tr>
+        <th>ID</th>
+        <th>Company</th>
+        <th>Role</th>
+        <th>Status</th>
+    </tr>
+
+    {% for job in jobs %}
+    <tr>
+        <td>{{ job.id }}</td>
+        <td>
+            <a href="/jobs/{{ loop.index0 }}">
+                {{ job.company }}
+            </a>
+        </td>
+        <td>{{ job.role }}</td>
+        <td>{{ job.status }}</td>
+    </tr>
+    {% endfor %}
+
+</table>
+
+{% endblock %}
