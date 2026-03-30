@@ -14,4 +14,20 @@
 
 <a href="/">← Back to list</a>
 
+<br><br>
+
+<form method="post" action="/jobs/{{ job_id }}/update">
+    <label>Update Status:</label>
+
+    <select name="status">
+        <option value="generated" {% if job.status == "generated" %}selected{% endif %}>Generated</option>
+        <option value="applied" {% if job.status == "applied" %}selected{% endif %}>Applied</option>
+        <option value="interview" {% if job.status == "interview" %}selected{% endif %}>Interview</option>
+        <option value="rejected" {% if job.status == "rejected" %}selected{% endif %}>Rejected</option>
+        <option value="offer" {% if job.status == "offer" %}selected{% endif %}>Offer</option>
+    </select>
+
+    <button type="submit">Update</button>
+</form>
+
 {% endblock %}
