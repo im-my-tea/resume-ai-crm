@@ -1,0 +1,13 @@
+.git
+.gitignore
+.env
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+data/
+CVs/
+JDs/
+master-resume.txt
+jd.txt
+README.md
