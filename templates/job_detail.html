@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Job Details</h2>
+
+<p><b>ID:</b> {{ job_id }}</p>
+<p><b>Company:</b> {{ job.company }}</p>
+<p><b>Role:</b> {{ job.role }}</p>
+<p><b>Status:</b> {{ job.status }}</p>
+<p><b>Date:</b> {{ job.date }}</p>
+
+<br>
+
+<a href="/">← Back to list</a>
+
+{% endblock %}
