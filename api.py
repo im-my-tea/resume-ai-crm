@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import Optional, List, Literal
 import datetime
 import re
 import os
@@ -13,7 +14,7 @@ app = FastAPI()
 
 
 # -----------------------
-# REQUEST SCHEMA
+# REQUEST/RESPONSE SCHEMA
 # -----------------------
 class ResumeRequest(BaseModel):
     company: str
@@ -23,7 +24,25 @@ class ResumeRequest(BaseModel):
 
 
 class StatusUpdateRequest(BaseModel):
+    status: Literal[
+        "generated",
+        "applied",
+        "interview",
+        "rejected",
+        "offer"
+    ]
+
+
+class JobResponse(BaseModel):
+    id: int
+    company: str
+    role: str
+    jd_path: str
+    resume_path: str
     status: str
+    date: str
+    edited: bool
+    notes: Optional[str] = None
 
 
 # -----------------------
@@ -37,7 +56,7 @@ def root():
 # -----------------------
 # GET ALL JOBS
 # -----------------------
-@app.get("/jobs")
+@app.get("/jobs", response_model=List[JobResponse])
 def get_jobs():
     return load_jobs()
 
@@ -45,32 +64,31 @@ def get_jobs():
 # -----------------------
 # GET SINGLE JOB
 # -----------------------
-@app.get("/jobs/{job_id}")
+@app.get("/jobs/{job_id}", response_model=JobResponse)
 def get_job(job_id: int):
     jobs = load_jobs()
 
-    if job_id < 0 or job_id >= len(jobs):
-        raise HTTPException(status_code=404, detail="Job not found")
+    for job in jobs:
+        if job["id"] == job_id:
+            return job
 
-    return jobs[job_id]
+    raise HTTPException(status_code=404, detail="Job not found")
 
 
 # -----------------------
 # UPDATE JOB STATUS
 # -----------------------
-@app.patch("/jobs/{job_id}")
+@app.patch("/jobs/{job_id}", response_model=JobResponse)
 def update_job_status(job_id: int, request: StatusUpdateRequest):
     jobs = load_jobs()
 
-    if job_id < 0 or job_id >= len(jobs):
-        raise HTTPException(status_code=404, detail="Job not found")
+    for job in jobs:
+        if job["id"] == job_id:
+            job["status"] = request.status
+            update_job(job_id, request.status)
+            return job
 
-    job = jobs[job_id]
-    job["status"] = request.status
-
-    update_job(job_id, job)
-
-    return {"message": "Job updated successfully"}
+    raise HTTPException(status_code=404, detail="Job not found")
 
 
 # -----------------------
