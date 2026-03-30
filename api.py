@@ -1,6 +1,8 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, HTTPException
 import datetime
 import re
 import os
@@ -11,6 +13,8 @@ from services.job_service import add_job, load_jobs, update_job
 from config import JOBS_DIR
 
 app = FastAPI()
+templates = Jinja2Templates(directory="templates")
+print(type(templates))
 
 # -----------------------
 # REQUEST/RESPONSE SCHEMA
@@ -47,9 +51,14 @@ class JobResponse(BaseModel):
 # -----------------------
 # ROOT
 # -----------------------
-@app.get("/")
-def root():
-    return {"message": "Resume AI CRM API running"}
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
+    jobs = load_jobs()
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={"jobs": jobs}
+    )
 
 
 # -----------------------
@@ -63,7 +72,7 @@ def get_jobs():
 # -----------------------
 # GET SINGLE JOB
 # -----------------------
-@app.get("/jobs/{job_id}", response_model=JobResponse)
+@app.get("/api/jobs/{job_id}", response_model=JobResponse)
 def get_job(job_id: int):
     jobs = load_jobs()
 
@@ -72,6 +81,21 @@ def get_job(job_id: int):
             return job
 
     raise HTTPException(status_code=404, detail="Job not found")
+
+@app.get("/jobs/{job_id}", response_class=HTMLResponse)
+def job_detail(request: Request, job_id: int):
+    jobs = load_jobs()
+
+    if job_id < 0 or job_id >= len(jobs):
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    job = jobs[job_id]
+
+    return templates.TemplateResponse(
+        request=request,
+        name="job_detail.html",
+        context={"job": job, "job_id": job_id}
+    )
 
 
 # -----------------------
