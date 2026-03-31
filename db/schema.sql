@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS jobs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     company TEXT,
     role TEXT,
     jd_path TEXT,
