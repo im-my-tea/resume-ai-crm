@@ -10,10 +10,11 @@ AI-powered resume tailoring and job application tracker. Paste a job description
 
 - AI resume tailoring via Gemini API (`gemini-2.5-flash`) — structure-preserving, ATS-optimised
 - Master resume passed at generation time — no sensitive files stored on the server
-- Job application tracking with status management (SQLite)
+- Job application tracking with status management
 - Web UI with FastAPI + Jinja2
 - RESTful API (`/api/jobs`)
 - CLI dashboard (`app.py`) for local use
+- Dual storage backend — Cloud SQL + GCS in production, SQLite + local filesystem locally
 
 ---
 
@@ -22,7 +23,8 @@ AI-powered resume tailoring and job application tracker. Paste a job description
 - Python 3.12
 - FastAPI + Jinja2 (web layer)
 - Google Gemini API (`gemini-2.5-flash`)
-- SQLite (job tracking)
+- PostgreSQL via Cloud SQL (production) / SQLite (local)
+- GCS (production file storage) / local filesystem (local)
 - Pydantic (request/response validation)
 - Docker + GCP Cloud Run (deployment)
 
@@ -32,22 +34,22 @@ AI-powered resume tailoring and job application tracker. Paste a job description
 
 ```
 api.py              # FastAPI app — UI routes + REST API
-config.py           # Centralised config (model, paths, DB)
+config.py           # Centralised config (model, paths, DB, GCS)
 services/
   ai_service.py     # Gemini prompt + response handling
-  job_service.py    # SQLite CRUD (load, get, add, update)
-  resume_service.py # Resume file saving + versioning
+  job_service.py    # DB CRUD (Postgres or SQLite)
+  resume_service.py # Resume saving — GCS or local filesystem
 db/
-  schema.sql        # Jobs table schema
-  database.py       # DB connection utility
+  schema.sql        # Jobs table schema (Postgres)
+  database.py       # Dual-mode DB connection (Postgres / SQLite)
 templates/
   base.html         # Base layout
   index.html        # Job list view
   job_detail.html   # Job detail + status update
   generate.html     # Resume generation form
-JDs/                # Stored job descriptions (gitignored)
-CVs/                # Generated resume versions (gitignored)
-data/jobs.db        # SQLite database (gitignored)
+JDs/                # Stored job descriptions (local only, gitignored)
+CVs/                # Generated resume versions (local only, gitignored)
+data/jobs.db        # SQLite database (local only, gitignored)
 ```
 
 ### Request flow
@@ -59,11 +61,17 @@ FastAPI (api.py)
   ↓
 ai_service.py  →  Gemini API  →  tailored resume text
   ↓
-resume_service.py  →  saves to CVs/
-job_service.py     →  writes record to SQLite
+resume_service.py  →  GCS bucket (cloud) / CVs/ (local)
+job_service.py     →  Cloud SQL Postgres (cloud) / SQLite (local)
   ↓
 Redirect → / (job list)
 ```
+
+### Storage mode detection
+
+The app checks for the `DATABASE_URL` environment variable at startup:
+- **Set** → cloud mode: Postgres (Cloud SQL) + GCS
+- **Not set** → local mode: SQLite + local filesystem
 
 ---
 
@@ -101,37 +109,38 @@ Open `http://localhost:8000`.
 
 ## Deployment (GCP Cloud Run)
 
+### GCP Resources Required
+
+| Resource | Name |
+|----------|------|
+| Cloud SQL instance | `resume-crm-db` (Postgres 15, db-f1-micro) |
+| Database | `resume_crm` |
+| Database user | `resume_user` |
+| GCS bucket | `resume-crm-gcb` |
+| Service account | `resume-crm-sa` (roles: `cloudsql.client`, `storage.objectAdmin`) |
+
+### Build and deploy
+
 ```bash
 # Build for AMD64 (Cloud Run target architecture)
-docker build --platform linux/amd64 -t us-central1-docker.pkg.dev/<PROJECT>/resume-ai-crm/resume-ai-crm:latest .
+docker build --platform linux/amd64 \
+  -t us-central1-docker.pkg.dev/ayush-resume-crm/resume-ai-crm/resume-ai-crm:latest .
 
 # Push to Artifact Registry
-docker push us-central1-docker.pkg.dev/<PROJECT>/resume-ai-crm/resume-ai-crm:latest
+docker push us-central1-docker.pkg.dev/ayush-resume-crm/resume-ai-crm/resume-ai-crm:latest
 
 # Deploy to Cloud Run
 gcloud run deploy resume-ai-crm \
-  --image us-central1-docker.pkg.dev/<PROJECT>/resume-ai-crm/resume-ai-crm:latest \
-  --platform managed \
-  --region us-central1 \
+  --image=us-central1-docker.pkg.dev/ayush-resume-crm/resume-ai-crm/resume-ai-crm:latest \
+  --platform=managed \
+  --region=us-central1 \
   --allow-unauthenticated \
-  --memory 512Mi \
-  --set-env-vars GEMINI_API_KEY=your_key_here
+  --memory=512Mi \
+  --service-account=resume-crm-sa@ayush-resume-crm.iam.gserviceaccount.com \
+  --add-cloudsql-instances=ayush-resume-crm:us-central1:resume-crm-db \
+  --set-env-vars="DATABASE_URL=true,DB_HOST=/cloudsql/ayush-resume-crm:us-central1:resume-crm-db,DB_NAME=resume_crm,DB_USER=resume_user,DB_PASS=YOUR_PASSWORD_HERE,GCS_BUCKET_NAME=resume-crm-gcb,GEMINI_API_KEY=YOUR_GEMINI_KEY_HERE" \
+  --project=ayush-resume-crm
 ```
-
----
-
-## Storage — Current Limitation
-
-Cloud Run containers are stateless. Generated resumes (`CVs/`), saved JDs (`JDs/`), and the SQLite database (`data/jobs.db`) are ephemeral — they reset on every cold start.
-
-**This is acceptable for demo purposes.** The live URL demonstrates the full generation and tracking flow.
-
-**Production migration path:**
-- SQLite → Cloud SQL (managed Postgres)
-- `CVs/` and `JDs/` → GCS bucket (object storage)
-- Master resume → GCS or Secret Manager
-
-For persistent personal use, run locally with `uvicorn api:app --reload` — SQLite and file storage work correctly on a local filesystem.
 
 ---
 
