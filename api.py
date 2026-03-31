@@ -10,7 +10,7 @@ import os
 from services.ai_service import generate_resume
 from services.resume_service import save_resume
 from services.job_service import load_jobs, get_job, update_job, update_notes, delete_job, add_job
-from config import JOBS_DIR
+from config import JOBS_DIR, GCS_BUCKET_NAME, USE_CLOUD
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
@@ -67,9 +67,15 @@ def job_detail_page(request: Request, job_id: int):
 
     resume_text = None
     try:
-        with open(job["resume_path"], "r") as f:
-            resume_text = f.read()
-    except (FileNotFoundError, TypeError):
+        if USE_CLOUD:
+            from google.cloud import storage
+            client = storage.Client()
+            blob = client.bucket(GCS_BUCKET_NAME).blob(job["resume_path"])
+            resume_text = blob.download_as_text()
+        else:
+            with open(job["resume_path"], "r") as f:
+                resume_text = f.read()
+    except Exception:
         pass
 
     return templates.TemplateResponse(request, "job_detail.html", {"job": job, "job_id": job_id, "resume_text": resume_text})
@@ -112,11 +118,17 @@ def generate_resume_ui(
 ):
     resume_text = generate_resume(master_resume, jd_text)
     resume_path = save_resume(resume_text)
-    os.makedirs(JOBS_DIR, exist_ok=True)
     company_slug = re.sub(r'[^a-z0-9]+', '-', company.lower()).strip('-')
     jd_path = f"{JOBS_DIR}/jd_{company_slug}.txt"
-    with open(jd_path, "w") as f:
-        f.write(jd_text)
+    if USE_CLOUD:
+        from google.cloud import storage
+        client = storage.Client()
+        blob = client.bucket(GCS_BUCKET_NAME).blob(jd_path)
+        blob.upload_from_string(jd_text, content_type="text/plain")
+    else:
+        os.makedirs(JOBS_DIR, exist_ok=True)
+        with open(jd_path, "w") as f:
+            f.write(jd_text)
     add_job(company, role, jd_path, resume_path)
     return RedirectResponse(url="/", status_code=303)
 
@@ -170,13 +182,18 @@ def generate_resume_api(request: ResumeRequest):
     resume_path = save_resume(resume_text)
 
     # 3. Save JD
-    os.makedirs(JOBS_DIR, exist_ok=True)
-
     company_slug = re.sub(r'[^a-z0-9]+', '-', request.company.lower()).strip('-')
     jd_path = f"{JOBS_DIR}/jd_{company_slug}.txt"
 
-    with open(jd_path, "w") as f:
-        f.write(request.jd_text)
+    if USE_CLOUD:
+        from google.cloud import storage
+        client = storage.Client()
+        blob = client.bucket(GCS_BUCKET_NAME).blob(jd_path)
+        blob.upload_from_string(request.jd_text, content_type="text/plain")
+    else:
+        os.makedirs(JOBS_DIR, exist_ok=True)
+        with open(jd_path, "w") as f:
+            f.write(request.jd_text)
 
     # 4. Save to DB (IMPORTANT FIX)
     add_job(
