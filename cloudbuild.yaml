@@ -4,14 +4,14 @@ steps:
     args:
       - build
       - -t
-      - $_IMAGE
+      - us-central1-docker.pkg.dev/$PROJECT_ID/resume-crm/resume-ai-crm:$COMMIT_SHA
       - .
 
   # 2. Push image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - push
-      - $_IMAGE
+      - us-central1-docker.pkg.dev/$PROJECT_ID/resume-crm/resume-ai-crm:$COMMIT_SHA
 
   # 3. Deploy to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -20,14 +20,10 @@ steps:
       - run
       - deploy
       - resume-ai-crm
-      - --image=$_IMAGE
-      - --region=$_REGION
+      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/resume-crm/resume-ai-crm:$COMMIT_SHA
+      - --region=us-central1
       - --platform=managed
       - --quiet
-
-substitutions:
-  _REGION: us-central1
-  _IMAGE: $_REGION-docker.pkg.dev/$PROJECT_ID/resume-crm/resume-ai-crm:$COMMIT_SHA
 
 options:
   logging: CLOUD_LOGGING_ONLY
