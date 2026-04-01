@@ -3,15 +3,19 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - build
+      - --platform=linux/amd64
       - -t
-      - us-central1-docker.pkg.dev/$PROJECT_ID/resume-crm/resume-ai-crm:$COMMIT_SHA
+      - us-central1-docker.pkg.dev/$PROJECT_ID/resume-ai-crm/resume-ai-crm:$COMMIT_SHA
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/resume-ai-crm/resume-ai-crm:latest
       - .
 
-  # 2. Push image to Artifact Registry
+  # 2. Push both tags to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - push
-      - us-central1-docker.pkg.dev/$PROJECT_ID/resume-crm/resume-ai-crm:$COMMIT_SHA
+      - --all-tags
+      - us-central1-docker.pkg.dev/$PROJECT_ID/resume-ai-crm/resume-ai-crm
 
   # 3. Deploy to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -20,10 +24,18 @@ steps:
       - run
       - deploy
       - resume-ai-crm
-      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/resume-crm/resume-ai-crm:$COMMIT_SHA
+      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/resume-ai-crm/resume-ai-crm:$COMMIT_SHA
       - --region=us-central1
       - --platform=managed
+      - --allow-unauthenticated
+      - --memory=512Mi
+      - --service-account=resume-crm-sa@$PROJECT_ID.iam.gserviceaccount.com
+      - --add-cloudsql-instances=$PROJECT_ID:us-central1:resume-crm-db
+      - --set-env-vars=DATABASE_URL=cloud,DB_HOST=/cloudsql/$PROJECT_ID:us-central1:resume-crm-db,DB_NAME=resume_crm,DB_USER=resume_user,DB_PASS=Resume123!,GCS_BUCKET_NAME=ayush-resume-crm-files,GEMINI_API_KEY=$_GEMINI_API_KEY
       - --quiet
+
+substitutions:
+  _GEMINI_API_KEY: '' # injected thru cloud run
 
 options:
   logging: CLOUD_LOGGING_ONLY
