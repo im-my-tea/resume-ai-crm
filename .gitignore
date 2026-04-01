@@ -8,6 +8,7 @@ __pycache__/
 
 # system
 .DS_Store
+.vscode/
 
 # logs
 *.log
@@ -20,3 +21,6 @@ data/jobs.db
 # temp inputs
 jd.txt
 master-resume.txt
+
+# docs
+ARCHITECTURE.md

@@ -1,5 +1,6 @@
 .git
 .gitignore
+.vscode/
 .env
 .venv/
 __pycache__/
@@ -11,3 +12,4 @@ JDs/
 master-resume.txt
 jd.txt
 README.md
+ARCHITECTURE.md
