@@ -27,6 +27,7 @@ AI-powered resume tailoring and job application tracker. Paste a job description
 - GCS (production file storage) / local filesystem (local)
 - Pydantic (request/response validation)
 - Docker + GCP Cloud Run (deployment)
+- GCP Cloud Build (CI/CD — auto-deploys on push to `main`)
 
 ---
 
@@ -109,38 +110,26 @@ Open `http://localhost:8000`.
 
 ## Deployment (GCP Cloud Run)
 
-### GCP Resources Required
+Deployment is fully automated via **Cloud Build**. Push to `main` → build runs → Cloud Run is updated. No manual steps needed.
+
+```
+git push origin main  →  Cloud Build  →  Artifact Registry  →  Cloud Run
+```
+
+### GCP Resources
 
 | Resource | Name |
 |----------|------|
-| Cloud SQL instance | `resume-crm-db` (Postgres 15, db-f1-micro) |
-| Database | `resume_crm` |
-| Database user | `resume_user` |
-| GCS bucket | `resume-crm-gcb` |
-| Service account | `resume-crm-sa` (roles: `cloudsql.client`, `storage.objectAdmin`) |
+| Cloud Run service | `resume-ai-crm` — `us-central1` |
+| Cloud SQL instance | `resume-crm-db` (Postgres 15) |
+| GCS bucket | `ayush-resume-crm-files` |
+| Artifact Registry | `resume-ai-crm` — `us-central1` |
+| Service account | `resume-crm-sa` (roles: `cloudsql.client`, `storage.objectAdmin`, `Cloud Run Admin`) |
+| Cloud Build trigger | `deploy-on-push-main` — fires on push to `^main$` |
 
-### Build and deploy
+### Manual deploy (if needed)
 
-```bash
-# Build for AMD64 (Cloud Run target architecture)
-docker build --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/ayush-resume-crm/resume-ai-crm/resume-ai-crm:latest .
-
-# Push to Artifact Registry
-docker push us-central1-docker.pkg.dev/ayush-resume-crm/resume-ai-crm/resume-ai-crm:latest
-
-# Deploy to Cloud Run
-gcloud run deploy resume-ai-crm \
-  --image=us-central1-docker.pkg.dev/ayush-resume-crm/resume-ai-crm/resume-ai-crm:latest \
-  --platform=managed \
-  --region=us-central1 \
-  --allow-unauthenticated \
-  --memory=512Mi \
-  --service-account=resume-crm-sa@ayush-resume-crm.iam.gserviceaccount.com \
-  --add-cloudsql-instances=ayush-resume-crm:us-central1:resume-crm-db \
-  --set-env-vars="DATABASE_URL=true,DB_HOST=/cloudsql/ayush-resume-crm:us-central1:resume-crm-db,DB_NAME=resume_crm,DB_USER=resume_user,DB_PASS=YOUR_PASSWORD_HERE,GCS_BUCKET_NAME=resume-crm-gcb,GEMINI_API_KEY=YOUR_GEMINI_KEY_HERE" \
-  --project=ayush-resume-crm
-```
+If you ever need to deploy without pushing to `main`, trigger a build manually from **GCP Console → Cloud Build → Triggers → Run**.
 
 ---
 
