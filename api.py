@@ -99,8 +99,8 @@ async def request_logging_middleware(request: Request, call_next):
     return response
 
 
-@app.get("/healthz")
-def healthz():
+@app.get("/health")
+def health():
     checks = {}
 
     # Database check: SELECT 1
@@ -113,10 +113,10 @@ def healthz():
         finally:
             conn.close()
         checks["database"] = "ok"
-        logger.info("healthz database check passed")
+        logger.info("health database check passed")
     except Exception:
         checks["database"] = "fail"
-        logger.error("healthz database check failed", exc_info=True)
+        logger.error("health database check failed", exc_info=True)
 
     # GCS check: only when USE_CLOUD, otherwise mark skipped
     if USE_CLOUD:
@@ -127,17 +127,17 @@ def healthz():
             if not bucket.exists():
                 raise Exception(f"bucket {GCS_BUCKET_NAME} not found")
             checks["gcs"] = "ok"
-            logger.info("healthz gcs check passed", extra={"bucket": GCS_BUCKET_NAME})
+            logger.info("health gcs check passed", extra={"bucket": GCS_BUCKET_NAME})
         except Exception:
             checks["gcs"] = "fail"
             logger.error(
-                "healthz gcs check failed",
+                "health gcs check failed",
                 exc_info=True,
                 extra={"bucket": GCS_BUCKET_NAME},
             )
     else:
         checks["gcs"] = "skipped"
-        logger.info("healthz gcs check skipped", extra={"use_cloud": False})
+        logger.info("health gcs check skipped", extra={"use_cloud": False})
 
     healthy = not any(v == "fail" for v in checks.values())
     body = {"status": "ok" if healthy else "degraded", "checks": checks}
