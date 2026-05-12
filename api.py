@@ -8,7 +8,7 @@ from typing import List, Literal, Optional
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from config import GCS_BUCKET_NAME, JOBS_DIR, USE_CLOUD
 from db.database import get_connection
@@ -33,10 +33,30 @@ templates = Jinja2Templates(directory="templates")
 # SCHEMAS
 # -----------------------
 class ResumeRequest(BaseModel):
-    company: str
-    role: str
-    jd_text: str
-    master_resume: str
+    company: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Company name the candidate is applying to.",
+    )
+    role: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Job title / role being applied for.",
+    )
+    jd_text: str = Field(
+        ...,
+        min_length=50,
+        max_length=20000,
+        description="Full job description text. Minimum 50 chars — shorter inputs are unlikely to be a real JD.",
+    )
+    master_resume: str = Field(
+        ...,
+        min_length=50,
+        max_length=20000,
+        description="Candidate's master resume text. Minimum 50 chars — shorter inputs are unlikely to be a real resume.",
+    )
 
 
 class StatusUpdateRequest(BaseModel):
