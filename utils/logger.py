@@ -1,7 +1,13 @@
 import json
 import logging
-import uuid
 from datetime import datetime, timezone
+
+_STANDARD_LOGRECORD_FIELDS = {
+    "name", "msg", "args", "levelname", "levelno", "pathname", "filename",
+    "module", "exc_info", "exc_text", "stack_info", "lineno", "funcName",
+    "created", "msecs", "relativeCreated", "thread", "threadName",
+    "processName", "process", "message", "taskName",
+}
 
 
 class JSONFormatter(logging.Formatter):
@@ -12,11 +18,12 @@ class JSONFormatter(logging.Formatter):
             "message": record.getMessage(),
             "logger": record.name,
         }
-        if hasattr(record, "request_id"):
-            log_entry["request_id"] = record.request_id
+        for key, value in record.__dict__.items():
+            if key not in _STANDARD_LOGRECORD_FIELDS and not key.startswith("_"):
+                log_entry[key] = value
         if record.exc_info:
             log_entry["exception"] = self.formatException(record.exc_info)
-        return json.dumps(log_entry)
+        return json.dumps(log_entry, default=str)
 
 
 def get_logger(name: str) -> logging.Logger:
