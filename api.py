@@ -84,7 +84,11 @@ async def request_logging_middleware(request: Request, call_next):
                 "duration_ms": duration_ms,
             },
         )
-        raise
+        return JSONResponse(
+            status_code=500,
+            content={"error": "internal server error", "request_id": request_id},
+            headers={"X-Request-ID": request_id},
+        )
     duration_ms = round((time.perf_counter() - start) * 1000, 2)
     logger.info(
         "Request completed",
@@ -96,6 +100,7 @@ async def request_logging_middleware(request: Request, call_next):
             "duration_ms": duration_ms,
         },
     )
+    response.headers["X-Request-ID"] = request_id
     return response
 
 
