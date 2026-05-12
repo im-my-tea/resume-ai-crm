@@ -6,11 +6,12 @@ import uuid
 from typing import List, Literal, Optional
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from config import GCS_BUCKET_NAME, JOBS_DIR, USE_CLOUD
+from db.database import get_connection
 from services.ai_service import generate_resume
 from services.job_service import (
     add_job,
@@ -96,6 +97,51 @@ async def request_logging_middleware(request: Request, call_next):
         },
     )
     return response
+
+
+@app.get("/healthz")
+def healthz():
+    checks = {}
+
+    # Database check: SELECT 1
+    try:
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+        finally:
+            conn.close()
+        checks["database"] = "ok"
+        logger.info("healthz database check passed")
+    except Exception:
+        checks["database"] = "fail"
+        logger.error("healthz database check failed", exc_info=True)
+
+    # GCS check: only when USE_CLOUD, otherwise mark skipped
+    if USE_CLOUD:
+        try:
+            from google.cloud import storage
+            client = storage.Client()
+            bucket = client.bucket(GCS_BUCKET_NAME)
+            if not bucket.exists():
+                raise Exception(f"bucket {GCS_BUCKET_NAME} not found")
+            checks["gcs"] = "ok"
+            logger.info("healthz gcs check passed", extra={"bucket": GCS_BUCKET_NAME})
+        except Exception:
+            checks["gcs"] = "fail"
+            logger.error(
+                "healthz gcs check failed",
+                exc_info=True,
+                extra={"bucket": GCS_BUCKET_NAME},
+            )
+    else:
+        checks["gcs"] = "skipped"
+        logger.info("healthz gcs check skipped", extra={"use_cloud": False})
+
+    healthy = not any(v == "fail" for v in checks.values())
+    body = {"status": "ok" if healthy else "degraded", "checks": checks}
+    return JSONResponse(status_code=200 if healthy else 503, content=body)
 
 
 @app.get("/", response_class=HTMLResponse)
