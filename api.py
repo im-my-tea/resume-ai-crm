@@ -123,9 +123,7 @@ def health():
         try:
             from google.cloud import storage
             client = storage.Client()
-            bucket = client.bucket(GCS_BUCKET_NAME)
-            if not bucket.exists():
-                raise Exception(f"bucket {GCS_BUCKET_NAME} not found")
+            next(client.list_blobs(GCS_BUCKET_NAME, max_results=1), None)
             checks["gcs"] = "ok"
             logger.info("health gcs check passed", extra={"bucket": GCS_BUCKET_NAME})
         except Exception:
