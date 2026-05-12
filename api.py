@@ -1,18 +1,29 @@
-from fastapi import FastAPI, HTTPException, Request, Form
-from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, RedirectResponse
-from pydantic import BaseModel
-from typing import Optional, List, Literal
 import datetime
-import re
 import os
+import re
+import uuid
+from typing import List, Literal, Optional
 
+from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
+
+from config import GCS_BUCKET_NAME, JOBS_DIR, USE_CLOUD
 from services.ai_service import generate_resume
+from services.job_service import (
+    add_job,
+    delete_job,
+    get_job,
+    load_jobs,
+    update_job,
+    update_notes,
+)
 from services.resume_service import save_resume
-from services.job_service import load_jobs, get_job, update_job, update_notes, delete_job, add_job
-from config import JOBS_DIR, GCS_BUCKET_NAME, USE_CLOUD
+from utils.logger import get_logger
 
 app = FastAPI()
+logger = get_logger("api")
 templates = Jinja2Templates(directory="templates")
 
 
@@ -27,13 +38,7 @@ class ResumeRequest(BaseModel):
 
 
 class StatusUpdateRequest(BaseModel):
-    status: Literal[
-        "generated",
-        "applied",
-        "interview",
-        "rejected",
-        "offer"
-    ]
+    status: Literal["generated", "applied", "interview", "rejected", "offer"]
 
 
 class JobResponse(BaseModel):
@@ -52,6 +57,19 @@ class JobResponse(BaseModel):
 # UI ROUTES
 # -----------------------
 
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    logger.info("Request started", extra={"request_id": request_id})
+    response = await call_next(request)
+    logger.info(
+        "Request completed",
+        extra={"request_id": request_id, "status_code": response.status_code},
+    )
+    return response
+
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     jobs = load_jobs()
@@ -69,6 +87,7 @@ def job_detail_page(request: Request, job_id: int):
     try:
         if USE_CLOUD:
             from google.cloud import storage
+
             client = storage.Client()
             blob = client.bucket(GCS_BUCKET_NAME).blob(job["resume_path"])
             resume_text = blob.download_as_text()
@@ -78,17 +97,18 @@ def job_detail_page(request: Request, job_id: int):
     except Exception:
         pass
 
-    return templates.TemplateResponse(request, "job_detail.html", {"job": job, "job_id": job_id, "resume_text": resume_text})
+    return templates.TemplateResponse(
+        request,
+        "job_detail.html",
+        {"job": job, "job_id": job_id, "resume_text": resume_text},
+    )
 
 
 @app.post("/jobs/{job_id}/update")
 def update_job_status_ui(job_id: int, status: str = Form(...)):
     update_job(job_id, status)
 
-    return RedirectResponse(
-        url=f"/jobs/{job_id}",
-        status_code=303
-    )
+    return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
 
 
 @app.post("/jobs/{job_id}/notes")
@@ -114,14 +134,15 @@ def generate_resume_ui(
     company: str = Form(...),
     role: str = Form(...),
     jd_text: str = Form(...),
-    master_resume: str = Form(...)
+    master_resume: str = Form(...),
 ):
     resume_text = generate_resume(master_resume, jd_text)
     resume_path = save_resume(resume_text)
-    company_slug = re.sub(r'[^a-z0-9]+', '-', company.lower()).strip('-')
+    company_slug = re.sub(r"[^a-z0-9]+", "-", company.lower()).strip("-")
     jd_path = f"{JOBS_DIR}/jd_{company_slug}.txt"
     if USE_CLOUD:
         from google.cloud import storage
+
         client = storage.Client()
         blob = client.bucket(GCS_BUCKET_NAME).blob(jd_path)
         blob.upload_from_string(jd_text, content_type="text/plain")
@@ -136,6 +157,7 @@ def generate_resume_ui(
 # -----------------------
 # API ROUTES
 # -----------------------
+
 
 @app.get("/api/jobs", response_model=List[JobResponse])
 def get_jobs_api():
@@ -169,24 +191,23 @@ def update_job_status_api(job_id: int, request: StatusUpdateRequest):
 # GENERATE RESUME
 # -----------------------
 
+
 @app.post("/generate-resume")
 def generate_resume_api(request: ResumeRequest):
 
     # 1. Generate resume
-    resume_text = generate_resume(
-        request.master_resume,
-        request.jd_text
-    )
+    resume_text = generate_resume(request.master_resume, request.jd_text)
 
     # 2. Save resume
     resume_path = save_resume(resume_text)
 
     # 3. Save JD
-    company_slug = re.sub(r'[^a-z0-9]+', '-', request.company.lower()).strip('-')
+    company_slug = re.sub(r"[^a-z0-9]+", "-", request.company.lower()).strip("-")
     jd_path = f"{JOBS_DIR}/jd_{company_slug}.txt"
 
     if USE_CLOUD:
         from google.cloud import storage
+
         client = storage.Client()
         blob = client.bucket(GCS_BUCKET_NAME).blob(jd_path)
         blob.upload_from_string(request.jd_text, content_type="text/plain")
@@ -196,14 +217,6 @@ def generate_resume_api(request: ResumeRequest):
             f.write(request.jd_text)
 
     # 4. Save to DB (IMPORTANT FIX)
-    add_job(
-        request.company,
-        request.role,
-        jd_path,
-        resume_path
-    )
+    add_job(request.company, request.role, jd_path, resume_path)
 
-    return {
-        "message": "Resume generated successfully",
-        "resume_path": resume_path
-    }
+    return {"message": "Resume generated successfully", "resume_path": resume_path}
