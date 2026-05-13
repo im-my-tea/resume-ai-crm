@@ -33,3 +33,4 @@ jobs:
         run: pytest tests/
         env:
           GEMINI_API_KEY: dummy-key-for-import-check
+          PYTHONPATH: .
