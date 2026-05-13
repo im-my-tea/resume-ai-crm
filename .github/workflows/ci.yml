@@ -20,9 +20,16 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Verify app imports
         run: python -c "import api; print('App imports OK')"
+        env:
+          GEMINI_API_KEY: dummy-key-for-import-check
+
+      - name: Run tests
+        run: pytest tests/
         env:
           GEMINI_API_KEY: dummy-key-for-import-check
