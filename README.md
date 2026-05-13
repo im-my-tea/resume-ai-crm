@@ -12,7 +12,12 @@ AI-powered resume tailoring and job application tracker. Paste a job description
 - Master resume passed at generation time — no sensitive files stored on the server
 - Job application tracking with status management
 - Web UI with FastAPI + Jinja2
-- RESTful API (`/api/jobs`)
+- RESTful API (`/api/jobs`) with Pydantic input validation (length-bounded fields, fail-fast 422)
+- Readiness probe (`/health`) — DB + GCS connectivity checks, returns 200/503
+- Structured JSON logging with per-request `request_id` correlation (`X-Request-ID` header + error body)
+- Circuit breaker on Gemini calls — trips after 5 consecutive failures, 60s cooldown, half-open probe
+- Graceful degradation — 503 with structured body (HTML for UI, JSON for API) when the breaker is open; no partial DB/GCS writes
+- Test suite — pytest + FastAPI TestClient, 5 tests, runs on every push via GitHub Actions
 - CLI dashboard (`app.py`) for local use
 - Dual storage backend — Cloud SQL + GCS in production, SQLite + local filesystem locally
 
@@ -146,6 +151,34 @@ If you ever need to deploy without pushing to `main`, trigger a build manually f
 | GET | `/api/jobs/{id}` | Get job by ID (JSON) |
 | PATCH | `/api/jobs/{id}` | Update job status (JSON) |
 | POST | `/generate-resume` | Generate resume (JSON API) |
+| GET | `/health` | Readiness probe — checks DB and GCS connectivity. 200 if healthy, 503 if degraded |
+
+### Error response shape
+
+Unhandled exceptions are converted by the request-logging middleware into a clean JSON envelope (no stack traces leaked to the caller):
+
+```json
+{"error": "internal server error", "request_id": "ea4c84dc-9be5-49ec-90ba-4586ef8c3d67"}
+```
+
+The same `request_id` is also stamped on every response as the `X-Request-ID` header, and appears on every log line from that request. Paste the ID when reporting an issue and the full trace can be pulled from Cloud Logging.
+
+---
+
+## Observability
+
+All logs are emitted as single-line JSON (`utils/logger.py`). Each HTTP request is bracketed by a middleware that generates a UUID `request_id`, logs `Request started` / `Request completed` (with `method`, `path`, `status_code`, `duration_ms`), and stamps `X-Request-ID` on the response. Cloud Logging picks up `severity` natively. Service-layer functions (`ai_service`, `job_service`, `resume_service`) log errors with `exc_info=True` and re-raise — exceptions are never swallowed.
+
+---
+
+## Testing
+
+```bash
+pip install -r requirements-dev.txt
+PYTHONPATH=. pytest tests/
+```
+
+The suite covers the happy path on `/generate-resume`, Pydantic 422 validation, `/health` structure, the 503 degraded response when the circuit breaker is open, and that every response carries a UUID4 `X-Request-ID` header. External dependencies (Gemini, DB, GCS, filesystem writes) are mocked with `unittest.mock.patch`. CI runs the same command on every push and PR to `main`.
 
 ---
 
