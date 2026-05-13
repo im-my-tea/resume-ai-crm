@@ -236,9 +236,11 @@ def generate_resume_ui(
     try:
         resume_text = generate_resume(master_resume, jd_text)
     except CircuitOpenError:
-        return JSONResponse(
+        return templates.TemplateResponse(
+            request,
+            "degraded.html",
+            {"company": company, "role": role},
             status_code=503,
-            content={"error": "AI service temporarily unavailable, please try again shortly"},
         )
     resume_path = save_resume(resume_text)
     company_slug = re.sub(r"[^a-z0-9]+", "-", company.lower()).strip("-")
@@ -304,7 +306,11 @@ def generate_resume_api(request: ResumeRequest):
     except CircuitOpenError:
         return JSONResponse(
             status_code=503,
-            content={"error": "AI service temporarily unavailable, please try again shortly"},
+            content={
+                "status": "degraded",
+                "message": "Resume generation temporarily unavailable. Please try again in a few minutes.",
+                "job": {"company": request.company, "role": request.role},
+            },
         )
 
     # 2. Save resume
