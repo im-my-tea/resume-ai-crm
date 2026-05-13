@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from config import GCS_BUCKET_NAME, JOBS_DIR, USE_CLOUD
 from db.database import get_connection
-from services.ai_service import generate_resume
+from services.ai_service import CircuitOpenError, generate_resume
 from services.job_service import (
     add_job,
     delete_job,
@@ -233,7 +233,13 @@ def generate_resume_ui(
     jd_text: str = Form(...),
     master_resume: str = Form(...),
 ):
-    resume_text = generate_resume(master_resume, jd_text)
+    try:
+        resume_text = generate_resume(master_resume, jd_text)
+    except CircuitOpenError:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "AI service temporarily unavailable, please try again shortly"},
+        )
     resume_path = save_resume(resume_text)
     company_slug = re.sub(r"[^a-z0-9]+", "-", company.lower()).strip("-")
     jd_path = f"{JOBS_DIR}/jd_{company_slug}.txt"
@@ -293,7 +299,13 @@ def update_job_status_api(job_id: int, request: StatusUpdateRequest):
 def generate_resume_api(request: ResumeRequest):
 
     # 1. Generate resume
-    resume_text = generate_resume(request.master_resume, request.jd_text)
+    try:
+        resume_text = generate_resume(request.master_resume, request.jd_text)
+    except CircuitOpenError:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "AI service temporarily unavailable, please try again shortly"},
+        )
 
     # 2. Save resume
     resume_path = save_resume(resume_text)
